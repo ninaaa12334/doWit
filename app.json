@@ -1,0 +1,15 @@
+{
+  "expo": {
+    "name": "Dowit",
+    "slug": "dowit",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "splash": { "backgroundColor": "#F6F7FB" },
+    "android": {
+      "adaptiveIcon": { "backgroundColor": "#6C5CE7" },
+      "edgeToEdgeEnabled": true
+    },
+    "ios": { "supportsTablet": true }
+  }
+}
