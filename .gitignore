@@ -24,5 +24,7 @@ dist-ssr
 *.sln
 *.sw?
 
-# Local secrets (Supabase keys)
-.env
+# .env is committed on purpose: it only holds the Supabase URL and the
+# publishable key, which are public by design (data is protected by the
+# row-level security rules in supabase/schema.sql). Never put the
+# service_role / secret key in it.

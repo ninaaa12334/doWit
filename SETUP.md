@@ -31,4 +31,4 @@ The Friends tab now shows your **friend code**.
 - The free Supabase plan is plenty for a group of friends (500 MB database, 1 GB of photo/video storage).
 - An account lives on the phone. If someone deletes the app, they get a new account and need to re-add friends.
 - Points are calculated on each phone, so a determined cheater could fake them. That's fine between friends. A public version would need server-side scoring.
-- The `.env` file is not committed to git. The anon key is designed to be used in apps, and the security rules in `schema.sql` protect the data.
+- This repo's `.env` is committed, so the app connects right after cloning. It only holds the publishable key, which is designed to be public; the security rules in `schema.sql` protect the data. **Never** put the `service_role` / secret key in it. If the key is ever abused, rotate it in Supabase → Project Settings → API Keys and update `.env`.
