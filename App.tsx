@@ -1,195 +1,243 @@
 import { Ionicons } from "@expo/vector-icons";
 import { StatusBar } from "expo-status-bar";
-import { useEffect, useMemo, useState } from "react";
-import { ActivityIndicator, Platform, Pressable, SafeAreaView, ScrollView, StyleSheet, Text, View } from "react-native";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { ActivityIndicator, Animated, AppState, KeyboardAvoidingView, Platform, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import { SafeAreaProvider, useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { getChallengeForDate, getLocalDateKey } from "./src-dowit/challenges";
-import { emptyProgress, loadProgress, Progress, saveProgress } from "./src-dowit/storage";
-
-type Screen = "home" | "progress";
+import { getLocalDateKey } from "./src-dowit/challenges";
+import { claimableCount, sabotageInfo } from "./src-dowit/game";
+import { CreateScreen } from "./src-dowit/screens/CreateScreen";
+import { FriendsScreen } from "./src-dowit/screens/FriendsScreen";
+import { PassScreen } from "./src-dowit/screens/PassScreen";
+import { ProfileScreen } from "./src-dowit/screens/ProfileScreen";
+import { TodayScreen } from "./src-dowit/screens/TodayScreen";
+import { ScreenProps, Tab, ToastTone } from "./src-dowit/screens/types";
+import { useSocial } from "./src-dowit/social";
+import { loadState, saveState, State } from "./src-dowit/storage";
+import { AccentContext, alpha, colors, IconName, radius, themes } from "./src-dowit/theme";
+import { Button, Decor } from "./src-dowit/ui";
 
 export default function App() {
-  const [screen, setScreen] = useState<Screen>("home");
-  const [progress, setProgress] = useState<Progress>(emptyProgress);
-  const [loading, setLoading] = useState(true);
-  const todayKey = getLocalDateKey();
-  const challenge = useMemo(() => getChallengeForDate(todayKey), [todayKey]);
-  const isCompleted = progress.completedDates.includes(todayKey);
-
-  useEffect(() => {
-    loadProgress().then((saved) => {
-      setProgress(saved);
-      setLoading(false);
-    });
-  }, []);
-
-  const completeChallenge = async () => {
-    if (isCompleted) return;
-    const next = {
-      totalPoints: progress.totalPoints + challenge.points,
-      completedDates: [...progress.completedDates, todayKey]
-    };
-    setProgress(next);
-    await saveProgress(next);
-  };
-
-  if (loading) {
-    return <SafeAreaView style={styles.loading}><ActivityIndicator size="large" color="#6C5CE7" /></SafeAreaView>;
-  }
-
   return (
-    <SafeAreaView style={styles.safeArea}>
-      <StatusBar style="dark" />
-      {screen === "home" ? (
-        <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-          <View style={styles.header}>
-            <View>
-              <Text style={styles.brand}>Dowit</Text>
-              <Text style={styles.muted}>{new Date().toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" })}</Text>
-            </View>
-            <View style={styles.pointsPill}>
-              <Ionicons name="star" size={17} color="#F2B705" />
-              <Text style={styles.pointsPillText}>{progress.totalPoints}</Text>
-            </View>
-          </View>
-
-          <Text style={styles.eyebrow}>TODAY'S CHALLENGE</Text>
-          <Text style={styles.heading}>One small win.{"\n"}Let's make it happen.</Text>
-
-          <View style={[styles.challengeCard, { borderTopColor: challenge.color }]}>
-            <View style={[styles.iconCircle, { backgroundColor: `${challenge.color}18` }]}>
-              <Ionicons name={challenge.icon as keyof typeof Ionicons.glyphMap} size={34} color={challenge.color} />
-            </View>
-            <Text style={styles.challengeTitle}>{challenge.title}</Text>
-            <Text style={styles.description}>{challenge.description}</Text>
-            <View style={styles.rewardRow}>
-              <Ionicons name="sparkles" size={18} color="#F2B705" />
-              <Text style={styles.rewardText}>Worth {challenge.points} points</Text>
-            </View>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel={isCompleted ? "Challenge completed" : "Complete today's challenge"}
-              disabled={isCompleted}
-              onPress={completeChallenge}
-              style={({ pressed }) => [styles.doneButton, isCompleted && styles.completedButton, pressed && !isCompleted && styles.pressed]}
-            >
-              <Ionicons name={isCompleted ? "checkmark-circle" : "checkmark"} size={23} color="#FFFFFF" />
-              <Text style={styles.doneText}>{isCompleted ? "Completed today" : "Done"}</Text>
-            </Pressable>
-          </View>
-
-          <View style={styles.note}>
-            <Ionicons name="sunny-outline" size={21} color="#EF8354" />
-            <Text style={styles.noteText}>Come back tomorrow for a fresh challenge.</Text>
-          </View>
-        </ScrollView>
-      ) : (
-        <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-          <View style={styles.header}>
-            <View>
-              <Text style={styles.brand}>Your progress</Text>
-              <Text style={styles.muted}>Every completed challenge counts.</Text>
-            </View>
-          </View>
-          <View style={styles.progressHero}>
-            <View style={styles.trophyCircle}><Ionicons name="trophy" size={42} color="#F2B705" /></View>
-            <Text style={styles.bigPoints}>{progress.totalPoints}</Text>
-            <Text style={styles.bigLabel}>TOTAL POINTS</Text>
-          </View>
-          <View style={styles.statsRow}>
-            <Stat icon="checkmark-done" color="#00A896" value={String(progress.completedDates.length)} label="Challenges done" />
-            <Stat icon="calendar-outline" color="#6C5CE7" value={isCompleted ? "Yes" : "Not yet"} label="Completed today" />
-          </View>
-          <Text style={styles.sectionTitle}>Recent wins</Text>
-          {progress.completedDates.length === 0 ? (
-            <View style={styles.emptyState}>
-              <Ionicons name="flag-outline" size={30} color="#8E92A4" />
-              <Text style={styles.emptyTitle}>Your first win is waiting</Text>
-              <Text style={styles.emptyText}>Finish today's challenge and it will appear here.</Text>
-            </View>
-          ) : (
-            [...progress.completedDates].reverse().slice(0, 5).map((dateKey) => {
-              const item = getChallengeForDate(dateKey);
-              return (
-                <View key={dateKey} style={styles.historyRow}>
-                  <View style={[styles.smallIcon, { backgroundColor: `${item.color}18` }]}><Ionicons name="checkmark" size={20} color={item.color} /></View>
-                  <View style={styles.historyText}>
-                    <Text style={styles.historyTitle}>{item.title}</Text>
-                    <Text style={styles.historyDate}>{new Date(`${dateKey}T12:00:00`).toLocaleDateString()}</Text>
-                  </View>
-                  <Text style={styles.historyPoints}>+{item.points}</Text>
-                </View>
-              );
-            })
-          )}
-        </ScrollView>
-      )}
-
-      <View style={styles.tabBar}>
-        <TabButton label="Today" icon="home" active={screen === "home"} onPress={() => setScreen("home")} />
-        <TabButton label="Progress" icon="stats-chart" active={screen === "progress"} onPress={() => setScreen("progress")} />
-      </View>
-    </SafeAreaView>
+    <SafeAreaProvider>
+      <StatusBar style="light" />
+      <Root />
+    </SafeAreaProvider>
   );
 }
 
-function Stat({ icon, color, value, label }: { icon: keyof typeof Ionicons.glyphMap; color: string; value: string; label: string }) {
-  return <View style={styles.statBox}><Ionicons name={icon} size={26} color={color} /><Text style={styles.statNumber}>{value}</Text><Text style={styles.statLabel}>{label}</Text></View>;
+const TABS: { id: Tab; label: string; icon: IconName; iconOff: IconName }[] = [
+  { id: "today", label: "Today", icon: "home", iconOff: "home-outline" },
+  { id: "create", label: "Create", icon: "add-circle", iconOff: "add-circle-outline" },
+  { id: "friends", label: "Friends", icon: "people", iconOff: "people-outline" },
+  { id: "pass", label: "Pass", icon: "diamond", iconOff: "diamond-outline" },
+  { id: "profile", label: "Me", icon: "person", iconOff: "person-outline" }
+];
+
+const TONE_COLOR: Record<ToastTone, string> = { success: colors.success, info: "#22B8F0", danger: colors.danger, gold: colors.gold };
+const TONE_ICON: Record<ToastTone, IconName> = { success: "checkmark-circle", info: "information-circle", danger: sabotageInfo.hard.icon, gold: "diamond" };
+
+function Root() {
+  const insets = useSafeAreaInsets();
+  const [state, setState] = useState<State | null>(null);
+  const [tab, setTab] = useState<Tab>("today");
+  const [dareFor, setDareFor] = useState<string | null>(null);
+  const [today, setToday] = useState(getLocalDateKey());
+  const [toastData, setToastData] = useState<{ message: string; tone: ToastTone } | null>(null);
+  const toastAnim = useRef(new Animated.Value(0)).current;
+  const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Always-current copy of state for async work (server sync) that outlives a render.
+  const stateRef = useRef<State | null>(null);
+
+  useEffect(() => {
+    loadState().then((loaded) => {
+      stateRef.current = loaded;
+      setState(loaded);
+    });
+  }, []);
+
+  // Pick up the new day if the app stays open past midnight.
+  useEffect(() => {
+    const sub = AppState.addEventListener("change", (status) => {
+      if (status === "active") setToday(getLocalDateKey());
+    });
+    const timer = setInterval(() => setToday(getLocalDateKey()), 60000);
+    return () => {
+      sub.remove();
+      clearInterval(timer);
+    };
+  }, []);
+
+  const update = useCallback((next: State) => {
+    stateRef.current = next;
+    setState(next);
+    saveState(next).catch(() => undefined);
+  }, []);
+  const getState = useCallback(() => stateRef.current, []);
+
+  const toast = useCallback(
+    (message: string, tone: ToastTone = "success") => {
+      if (toastTimer.current) clearTimeout(toastTimer.current);
+      setToastData({ message, tone });
+      Animated.spring(toastAnim, { toValue: 1, useNativeDriver: true, friction: 7 }).start();
+      toastTimer.current = setTimeout(() => {
+        Animated.timing(toastAnim, { toValue: 0, duration: 220, useNativeDriver: true }).start(() => setToastData(null));
+      }, 2800);
+    },
+    [toastAnim]
+  );
+
+  const social = useSocial({ state, getState, update, toast, today });
+
+  if (!state) {
+    return (
+      <View style={[styles.app, styles.center]}>
+        <ActivityIndicator size="large" color={themes.violet.accent} />
+      </View>
+    );
+  }
+
+  const accent = themes[state.theme]?.accent ?? themes.violet.accent;
+
+  if (!state.onboarded) {
+    return (
+      <AccentContext.Provider value={accent}>
+        <Welcome
+          insetsTop={insets.top}
+          insetsBottom={insets.bottom}
+          initialName={state.name}
+          returning={state.completions.length > 0}
+          onDone={(name) => update({ ...state, name, onboarded: true })}
+        />
+      </AccentContext.Provider>
+    );
+  }
+
+  const props: ScreenProps = { state, today, update, toast, go: setTab, social, dareFor, setDareFor };
+  const passBadge = claimableCount(state, today);
+  const friendsBadge = social.requests.filter((r) => r.incoming).length;
+
+  return (
+    <AccentContext.Provider value={accent}>
+      <View style={[styles.app, { paddingTop: insets.top }]}>
+        <View style={styles.body}>
+          {tab === "today" && <TodayScreen {...props} />}
+          {tab === "create" && <CreateScreen {...props} />}
+          {tab === "friends" && <FriendsScreen {...props} />}
+          {tab === "pass" && <PassScreen {...props} />}
+          {tab === "profile" && <ProfileScreen {...props} />}
+        </View>
+
+        <View style={[styles.tabBar, { paddingBottom: Math.max(insets.bottom, 10) }]}>
+          {TABS.map((item) => {
+            const active = tab === item.id;
+            return (
+              <Pressable
+                key={item.id}
+                accessibilityRole="tab"
+                accessibilityLabel={item.label}
+                accessibilityState={{ selected: active }}
+                onPress={() => setTab(item.id)}
+                style={styles.tab}
+              >
+                <View style={[styles.tabIcon, active && { backgroundColor: alpha(accent, 0.18) }]}>
+                  <Ionicons name={active ? item.icon : item.iconOff} size={23} color={active ? accent : colors.faint} />
+                  {item.id === "pass" && passBadge > 0 ? (
+                    <View style={styles.badge}><Text style={styles.badgeText}>{passBadge > 9 ? "9+" : passBadge}</Text></View>
+                  ) : null}
+                  {item.id === "friends" && friendsBadge > 0 ? (
+                    <View style={[styles.badge, { backgroundColor: colors.danger }]}><Text style={[styles.badgeText, { color: colors.white }]}>{friendsBadge}</Text></View>
+                  ) : null}
+                </View>
+                <Text style={[styles.tabLabel, active && { color: accent }]}>{item.label}</Text>
+              </Pressable>
+            );
+          })}
+        </View>
+
+        {toastData ? (
+          <Animated.View
+            pointerEvents="none"
+            style={[
+              styles.toast,
+              { top: insets.top + 8, borderColor: alpha(TONE_COLOR[toastData.tone], 0.5) },
+              { opacity: toastAnim, transform: [{ translateY: toastAnim.interpolate({ inputRange: [0, 1], outputRange: [-30, 0] }) }] }
+            ]}
+          >
+            <Ionicons name={TONE_ICON[toastData.tone]} size={22} color={TONE_COLOR[toastData.tone]} />
+            <Text style={styles.toastText}>{toastData.message}</Text>
+          </Animated.View>
+        ) : null}
+      </View>
+    </AccentContext.Provider>
+  );
 }
 
-function TabButton({ label, icon, active, onPress }: { label: string; icon: "home" | "stats-chart"; active: boolean; onPress: () => void }) {
-  const shownIcon = active ? icon : `${icon}-outline` as keyof typeof Ionicons.glyphMap;
+function Welcome({ insetsTop, insetsBottom, initialName, returning, onDone }: { insetsTop: number; insetsBottom: number; initialName: string; returning: boolean; onDone: (name: string) => void }) {
+  const [name, setName] = useState(initialName);
+  const valid = name.trim().length >= 2;
   return (
-    <Pressable accessibilityRole="tab" accessibilityState={{ selected: active }} onPress={onPress} style={styles.tabButton}>
-      <Ionicons name={shownIcon} size={23} color={active ? "#6C5CE7" : "#8E92A4"} />
-      <Text style={[styles.tabLabel, active && styles.tabLabelActive]}>{label}</Text>
-    </Pressable>
+    <KeyboardAvoidingView style={[styles.app, { paddingTop: insetsTop + 20, paddingBottom: insetsBottom + 20 }]} behavior={Platform.OS === "ios" ? "padding" : undefined}>
+      <View style={styles.welcome}>
+        <View style={styles.logoWrap}>
+          <Decor color={themes.violet.accent} strong />
+          <View style={styles.logo}><Ionicons name="flash" size={54} color={colors.white} /></View>
+        </View>
+        <Text style={styles.welcomeTitle}>{returning ? "Dowit got an upgrade" : "Welcome to Dowit"}</Text>
+        <Text style={styles.welcomeText}>One challenge a day. Earn points, unlock your own challenges at 100, sabotage friends at 1000, and climb the Royal Pass.</Text>
+        <View style={styles.features}>
+          {[
+            ["sunny", "Daily challenges"],
+            ["construct", "Create & dare"],
+            ["skull", "Sabotage"],
+            ["diamond", "Royal Pass"]
+          ].map(([icon, label]) => (
+            <View key={label} style={styles.feature}>
+              <Ionicons name={icon as IconName} size={18} color={themes.violet.accent} />
+              <Text style={styles.featureText}>{label}</Text>
+            </View>
+          ))}
+        </View>
+      </View>
+      <View style={styles.welcomeForm}>
+        <Text style={styles.inputLabel}>What should friends call you?</Text>
+        <TextInput
+          value={name}
+          onChangeText={setName}
+          maxLength={20}
+          placeholder="Your name"
+          placeholderTextColor={colors.faint}
+          style={styles.input}
+          returnKeyType="done"
+          onSubmitEditing={() => valid && onDone(name.trim())}
+        />
+        <Button label="Let's go" icon="arrow-forward" onPress={() => onDone(name.trim())} disabled={!valid} />
+      </View>
+    </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: "#F6F7FB", paddingTop: Platform.OS === "android" ? 28 : 0 },
-  loading: { flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: "#F6F7FB" },
-  content: { paddingHorizontal: 22, paddingTop: 18, paddingBottom: 110 },
-  header: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 34 },
-  brand: { color: "#22233A", fontSize: 27, fontWeight: "800" },
-  muted: { color: "#777B8E", fontSize: 14, marginTop: 5 },
-  pointsPill: { flexDirection: "row", alignItems: "center", gap: 7, backgroundColor: "#FFFFFF", paddingHorizontal: 14, height: 40, borderRadius: 20 },
-  pointsPillText: { color: "#22233A", fontSize: 16, fontWeight: "800" },
-  eyebrow: { color: "#6C5CE7", fontSize: 12, fontWeight: "800" },
-  heading: { color: "#22233A", fontSize: 31, lineHeight: 39, fontWeight: "800", marginTop: 9, marginBottom: 24 },
-  challengeCard: { backgroundColor: "#FFFFFF", borderRadius: 8, borderTopWidth: 5, padding: 24, shadowColor: "#15162A", shadowOpacity: 0.07, shadowRadius: 16, shadowOffset: { width: 0, height: 7 }, elevation: 3 },
-  iconCircle: { width: 66, height: 66, borderRadius: 33, alignItems: "center", justifyContent: "center", marginBottom: 22 },
-  challengeTitle: { color: "#22233A", fontSize: 24, lineHeight: 31, fontWeight: "800" },
-  description: { color: "#686C7E", fontSize: 16, lineHeight: 24, marginTop: 11 },
-  rewardRow: { flexDirection: "row", alignItems: "center", gap: 7, marginTop: 20 },
-  rewardText: { color: "#5D6072", fontSize: 14, fontWeight: "700" },
-  doneButton: { height: 56, borderRadius: 8, backgroundColor: "#6C5CE7", alignItems: "center", justifyContent: "center", flexDirection: "row", gap: 9, marginTop: 25 },
-  completedButton: { backgroundColor: "#00A896" },
-  pressed: { opacity: 0.82, transform: [{ scale: 0.99 }] },
-  doneText: { color: "#FFFFFF", fontSize: 17, fontWeight: "800" },
-  note: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, marginTop: 23 },
-  noteText: { color: "#777B8E", fontSize: 13 },
-  progressHero: { alignItems: "center", backgroundColor: "#FFFFFF", borderRadius: 8, paddingVertical: 30, marginBottom: 18 },
-  trophyCircle: { width: 76, height: 76, borderRadius: 38, alignItems: "center", justifyContent: "center", backgroundColor: "#FFF7D6" },
-  bigPoints: { color: "#22233A", fontSize: 48, fontWeight: "800", marginTop: 12 },
-  bigLabel: { color: "#8E92A4", fontSize: 12, fontWeight: "800" },
-  statsRow: { flexDirection: "row", gap: 12 },
-  statBox: { flex: 1, minHeight: 132, backgroundColor: "#FFFFFF", borderRadius: 8, padding: 17 },
-  statNumber: { color: "#22233A", fontSize: 22, fontWeight: "800", marginTop: 11 },
-  statLabel: { color: "#777B8E", fontSize: 13, lineHeight: 18, marginTop: 3 },
-  sectionTitle: { color: "#22233A", fontSize: 19, fontWeight: "800", marginTop: 28, marginBottom: 13 },
-  emptyState: { alignItems: "center", backgroundColor: "#FFFFFF", borderRadius: 8, padding: 25 },
-  emptyTitle: { color: "#22233A", fontSize: 16, fontWeight: "800", marginTop: 10 },
-  emptyText: { color: "#777B8E", textAlign: "center", lineHeight: 20, marginTop: 5 },
-  historyRow: { flexDirection: "row", alignItems: "center", backgroundColor: "#FFFFFF", borderRadius: 8, padding: 14, marginBottom: 9 },
-  smallIcon: { width: 40, height: 40, borderRadius: 20, alignItems: "center", justifyContent: "center" },
-  historyText: { flex: 1, marginHorizontal: 12 },
-  historyTitle: { color: "#22233A", fontSize: 14, fontWeight: "700" },
-  historyDate: { color: "#8E92A4", fontSize: 12, marginTop: 3 },
-  historyPoints: { color: "#00A896", fontSize: 14, fontWeight: "800" },
-  tabBar: { position: "absolute", left: 0, right: 0, bottom: 0, height: Platform.OS === "ios" ? 86 : 72, paddingBottom: Platform.OS === "ios" ? 18 : 5, flexDirection: "row", backgroundColor: "#FFFFFF", borderTopWidth: 1, borderTopColor: "#E9EAF1" },
-  tabButton: { flex: 1, alignItems: "center", justifyContent: "center", gap: 4 },
-  tabLabel: { color: "#8E92A4", fontSize: 12, fontWeight: "700" },
-  tabLabelActive: { color: "#6C5CE7" }
+  app: { flex: 1, backgroundColor: colors.bg },
+  center: { alignItems: "center", justifyContent: "center" },
+  body: { flex: 1 },
+  tabBar: { flexDirection: "row", backgroundColor: colors.surface, borderTopWidth: 1, borderTopColor: colors.border, paddingTop: 8, paddingHorizontal: 6 },
+  tab: { flex: 1, alignItems: "center", gap: 3, minHeight: 52 },
+  tabIcon: { width: 52, height: 32, borderRadius: 16, alignItems: "center", justifyContent: "center" },
+  tabLabel: { color: colors.faint, fontSize: 11, fontWeight: "800" },
+  badge: { position: "absolute", top: -3, right: 6, minWidth: 18, height: 18, borderRadius: 9, paddingHorizontal: 4, backgroundColor: colors.gold, alignItems: "center", justifyContent: "center" },
+  badgeText: { color: "#2A1D00", fontSize: 10, fontWeight: "900" },
+  toast: { position: "absolute", left: 16, right: 16, alignSelf: "center", maxWidth: 520, flexDirection: "row", alignItems: "center", gap: 10, backgroundColor: colors.surfaceHigh, borderRadius: radius.md, borderWidth: 1, paddingHorizontal: 16, paddingVertical: 14, shadowColor: "#000", shadowOpacity: 0.4, shadowRadius: 16, shadowOffset: { width: 0, height: 8 }, elevation: 12 },
+  toastText: { flex: 1, color: colors.text, fontSize: 14, fontWeight: "700", lineHeight: 20 },
+  welcome: { flex: 1, justifyContent: "center", alignItems: "center", paddingHorizontal: 28 },
+  logoWrap: { width: 160, height: 160, alignItems: "center", justifyContent: "center", borderRadius: 80, overflow: "hidden" },
+  logo: { width: 100, height: 100, borderRadius: 34, backgroundColor: themes.violet.accent, alignItems: "center", justifyContent: "center", transform: [{ rotate: "-8deg" }] },
+  welcomeTitle: { color: colors.text, fontSize: 32, fontWeight: "900", textAlign: "center", marginTop: 20, letterSpacing: -0.5 },
+  welcomeText: { color: colors.muted, fontSize: 16, lineHeight: 24, textAlign: "center", marginTop: 12, maxWidth: 420 },
+  features: { flexDirection: "row", flexWrap: "wrap", justifyContent: "center", gap: 8, marginTop: 22 },
+  feature: { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, borderRadius: radius.pill, paddingHorizontal: 12, height: 36 },
+  featureText: { color: colors.text, fontSize: 13, fontWeight: "700" },
+  welcomeForm: { paddingHorizontal: 24, gap: 12, width: "100%", maxWidth: 560, alignSelf: "center" },
+  inputLabel: { color: colors.text, fontSize: 15, fontWeight: "800" },
+  input: { backgroundColor: colors.surface, color: colors.text, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, paddingHorizontal: 16, height: 56, fontSize: 17 }
 });
